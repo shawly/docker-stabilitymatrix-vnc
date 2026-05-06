@@ -3,7 +3,7 @@
   <menu id="root-menu" label="MENU">
     <item label="Stability Matrix" icon="/usr/share/hicolor/48x48/apps/stability-matrix.png">
       <action name="Execute">
-        <command>/usr/local/bin/stability-matrix-launch</command>
+        <command>/usr/local/bin/sm-launch</command>
       </action>
     </item>
   </menu>

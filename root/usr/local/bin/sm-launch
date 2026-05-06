@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-exec /usr/bin/stability-matrix \
+exec /usr/bin/StabilityMatrix.Avalonia \
     --home-dir "${SM_HOME_DIR:-/config/StabilityMatrix}" \
     --data-dir "${SM_DATA_DIR:-/data}" \
     "$@"

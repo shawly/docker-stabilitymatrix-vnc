@@ -1,0 +1,21 @@
+Read GITHUB_TOKEN from environment and pass to Octokit as credentials.
+Raises the GitHub API rate limit from 60 (unauthenticated) to 5000 req/hr.
+Set GITHUB_TOKEN in docker-compose.yml or the container environment at runtime.
+--- a/StabilityMatrix.Avalonia/App.axaml.cs
++++ b/StabilityMatrix.Avalonia/App.axaml.cs
+@@ -508,12 +508,8 @@
+         services.AddTransient<IGitHubClient, GitHubClient>(_ =>
+         {
+             var client = new GitHubClient(new ProductHeaderValue("StabilityMatrix"));
+-            // var githubApiKey = Config["GithubApiKey"];
+-            // if (string.IsNullOrWhiteSpace(githubApiKey))
+-            //     return client;
+-            //
+-            // client.Credentials = new Credentials(
+-            //     ""
+-            // );
++            var githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
++            if (!string.IsNullOrWhiteSpace(githubToken))
++                client.Credentials = new Credentials(githubToken);
+             return client;
+         });

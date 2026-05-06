@@ -1,0 +1,31 @@
+#!/usr/bin/with-contenv bash
+
+set -euo pipefail
+
+SETTINGS="${SM_DATA_DIR:-/data}/settings.json"
+
+if [[ ! -f "${SETTINGS}" ]]; then
+    echo "[init-sm-host-patch] settings.json not found, skipping"
+    exit 0
+fi
+
+# Read all installed package names from settings.json.
+# If there are none yet (first run before any packages are installed), exit gracefully.
+mapfile -t PACKAGES < <(jq -r '.InstalledPackages[]?.PackageName // empty' "${SETTINGS}")
+
+if [[ ${#PACKAGES[@]} -eq 0 ]]; then
+    echo "[init-sm-host-patch] No installed packages found, skipping"
+    exit 0
+fi
+
+echo "[init-sm-host-patch] Patching ${#PACKAGES[@]} package(s) to bind on 0.0.0.0..."
+
+for PKG in "${PACKAGES[@]}"; do
+    if /usr/local/bin/sm-patch-bindings "${PKG}" 0.0.0.0 - 2>&1; then
+        :
+    else
+        echo "[init-sm-host-patch] WARNING: ${PKG} does not support automated host patching, skipping"
+    fi
+done
+
+echo "[init-sm-host-patch] Done"

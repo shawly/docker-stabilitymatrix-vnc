@@ -1,34 +1,60 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
+#
+# SM_REF=v*.*.* → download official AppImage (no build, signatures preserved)
+# SM_REF=main/branch/SHA → source build with quilt patches applied
 FROM mcr.microsoft.com/dotnet/sdk:9.0-noble AS builder
 
 ARG SM_REF=main
 
+COPY patches/ /patches/
+
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
+    && apt-get install -y --no-install-recommends curl git quilt squashfs-tools unzip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Try shallow clone for branch/tag refs, then fall back for bare commit SHAs.
-RUN git clone --depth 1 --branch "${SM_REF}" \
-      https://github.com/LykosAI/StabilityMatrix.git /src 2>/dev/null \
+# Branch: version tag → download AppImage; branch/commit → source build with patches.
+RUN <<'BUILD_STABILITY_MATRIX'
+set -eu
+mkdir -p /build/publish /build/root/usr/bin
+if echo "${SM_REF}" | grep -qE '^v[0-9]+\.[0-9]+'; then
+    echo "[builder] Downloading AppImage for release ${SM_REF}..."
+    curl -fsSL \
+      "https://github.com/LykosAI/StabilityMatrix/releases/download/${SM_REF}/StabilityMatrix-linux-x64.zip" \
+      -o /tmp/StabilityMatrix.zip
+    unzip -q /tmp/StabilityMatrix.zip -d /tmp
+    chmod +x /tmp/StabilityMatrix.AppImage
+    cd /build
+    /tmp/StabilityMatrix.AppImage --appimage-extract usr
+    mv -v /build/squashfs-root/usr/bin/StabilityMatrix.Avalonia /build/root/usr/bin/StabilityMatrix.Avalonia
+    echo "${SM_REF}" > /build/commit.sha
+else
+    echo "[builder] Cloning source for ref ${SM_REF}..."
+    git clone --depth 1 --branch "${SM_REF}" \
+        https://github.com/LykosAI/StabilityMatrix.git /src 2>/dev/null \
     || (git clone https://github.com/LykosAI/StabilityMatrix.git /src \
         && git -C /src checkout "${SM_REF}")
-
-WORKDIR /src
-RUN dotnet restore \
-  && dotnet publish StabilityMatrix.Avalonia/StabilityMatrix.Avalonia.csproj \
-      --configuration Release \
-      --runtime linux-x64 \
-      --self-contained false \
-      -p:PublishSingleFile=true \
-      -p:DebugType=none \
-      -p:DebugSymbols=false \
-      -p:SkipSigning=true \
-      --output /build/publish
-
-RUN git -C /src rev-parse --short HEAD > /build/commit.sha
+    cd /src
+    QUILT_PATCHES=/patches quilt push -a
+    dotnet restore
+    dotnet publish StabilityMatrix.Avalonia/StabilityMatrix.Avalonia.csproj \
+        --configuration Release \
+        --runtime linux-x64 \
+        --self-contained true \
+        -p:PublishSingleFile=true \
+        -p:DebugType=none \
+        -p:DebugSymbols=false \
+        -p:SkipSigning=true \
+        --output /build/publish
+    ls -l /build/publish/
+    mv -v /build/publish/* /build/root/usr/bin/
+    git -C /src rev-parse --short HEAD > /build/commit.sha
+fi
+chmod +x /build/root/usr/bin/StabilityMatrix.Avalonia
+BUILD_STABILITY_MATRIX
 
 # Runtime stage
 FROM lscr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
@@ -67,15 +93,14 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/publish/ /opt/stability-matrix/
-RUN chmod +x /opt/stability-matrix/StabilityMatrix.Avalonia \
-    && ln -sf /opt/stability-matrix/StabilityMatrix.Avalonia /usr/bin/stability-matrix
+COPY --from=builder /build/root/ /
 
 COPY root/ /
 
 RUN chmod +x /etc/s6-overlay/s6-rc.d/init-stability-matrix-config/run \
-    && chmod +x /opt/scripts/patch-sm-package.sh \
-    && chmod +x /usr/local/bin/stability-matrix-launch \
+    && chmod +x /etc/s6-overlay/s6-rc.d/init-sm-host-patch/run \
+    && chmod +x /usr/local/bin/sm-patch-bindings \
+    && chmod +x /usr/local/bin/sm-launch \
     && chmod +x /usr/local/bin/sm-apply-xft-dpi \
     && chmod +x /usr/local/bin/sm-url-copy
 
@@ -85,4 +110,5 @@ ENV SM_HOME_DIR=/config/StabilityMatrix \
     NO_DECOR="true" \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     DOTNET_EnableWriteXorExecute=0 \
-    APPIMAGE="/opt/stability-matrix/StabilityMatrix.Avalonia"
+    APPIMAGE="/usr/bin/StabilityMatrix.Avalonia" \
+    GITHUB_TOKEN=""

@@ -18,7 +18,7 @@ chown -R "${TARGET_UID}:${TARGET_GID}" "${HOME_DIR}" "${DATA_DIR}"
 
 if [[ ! -f "${GLOBAL_JSON}" ]]; then
     echo '{"EulaAccepted":true}' > "${GLOBAL_JSON}"
-    echo "[sm-config] Created ${GLOBAL_JSON} (EULA pre-accepted)"
+    echo "[init-sm-seed-config] Created ${GLOBAL_JSON} (EULA pre-accepted)"
 fi
 
 if [[ ! -f "${SETTINGS_FILE}" ]]; then
@@ -28,8 +28,12 @@ if [[ ! -f "${SETTINGS_FILE}" ]]; then
     "PreferredGpu": null,
     "Theme": "Dark",
     "CheckForUpdates": false,
-    "FirstLaunchSetupComplete": false
+    "FirstLaunchSetupComplete": false,
+	"EnvironmentVariables": {
+		"GRADIO_SERVER_NAME": "0.0.0.0",
+		"INVOKEAI_HOST": "0.0.0.0"
+	}
 }
 ENDJSON
-    echo "[sm-config] Created initial settings.json at ${SETTINGS_FILE}"
+    echo "[init-sm-seed-config] Created initial settings.json at ${SETTINGS_FILE}"
 fi

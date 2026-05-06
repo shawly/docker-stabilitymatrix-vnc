@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PACKAGE_NAME="${1:?Usage: $0 <package-name> <host|-> <port|-> [torch-index]}"
+HOST="${2:--}"
+PORT="${3:--}"
+TORCH_INDEX="${4:-}"
+
+# A value of "-" means "don't change this setting".
+# At least one of HOST or PORT (or TORCH_INDEX) must be meaningful.
+if [[ "${HOST}" == "-" && "${PORT}" == "-" && -z "${TORCH_INDEX}" ]]; then
+    echo "ERROR: at least one of <host>, <port>, or [torch-index] must be set" >&2
+    exit 1
+fi
+
+SETTINGS="${SM_DATA_DIR:-/data}/settings.json"
+
+if [[ ! -f "${SETTINGS}" ]]; then
+    echo "ERROR: settings.json not found at ${SETTINGS}" >&2
+    exit 1
+fi
+
+# Determine the correct patch mode and flag names for the package.
+#
+# PATCH_MODE values:
+#   launch-args       Write host + port into .LaunchArgs as String options (most packages)
+#   launch-args-bool  Write host as Bool flag (no value) + port as String into .LaunchArgs (VoltaML)
+#   env-vars          Write host + port into .EnvironmentVariables under named env keys
+#
+# Host flag / env var per package:
+#   --listen       ComfyUI family, Fooocus family, KohyaSs, SimpleSDXL
+#   --host         StableSwarmUI (String), VoltaML (Bool — bool mode, any host value becomes 0.0.0.0)
+#   --server       FramePack, FramePackStudio
+#   --server-name  A1111 family, all Forge variants, VladAutomatic, Wan2GP
+#   INVOKEAI_HOST  InvokeAI (env-vars mode)
+#   GRADIO_SERVER_NAME  Cogstudio, FluxGym (env-vars mode)
+#
+# Port flag / env var per package:
+#   --port         everything except Wan2GP and env-vars mode
+#   --server-port  Wan2GP
+#   INVOKEAI_PORT  InvokeAI (env-vars mode)
+#   GRADIO_SERVER_PORT  Cogstudio, FluxGym (env-vars mode)
+PATCH_MODE="launch-args"
+HOST_FLAG="--server-name"   # default: A1111/Forge family
+PORT_FLAG="--port"          # default
+HOST_ENV=""
+PORT_ENV=""
+
+case "${PACKAGE_NAME}" in
+    ComfyUI|ComfyUI-Zluda)
+        HOST_FLAG="--listen"
+        PORT_FLAG="--port"
+        ;;
+    Fooocus|Fooocus-ControlNet-SDXL|mashb1t-fooocus|Fooocus-MRE|RuinedFooocus|SimpleSDXL|kohya_ss)
+        HOST_FLAG="--listen"
+        PORT_FLAG="--port"
+        ;;
+    StableSwarmUI)
+        HOST_FLAG="--host"
+        PORT_FLAG="--port"
+        ;;
+    Wan2GP)
+        HOST_FLAG="--server-name"
+        PORT_FLAG="--server-port"
+        ;;
+    framepack|framepack-studio)
+        HOST_FLAG="--server"
+        PORT_FLAG="--port"
+        ;;
+    voltaML-fast-stable-diffusion)
+        # --host is LaunchOptionType.Bool in VoltaML — emitted as a bare flag which enables
+        # external access (effectively 0.0.0.0). The HOST argument is accepted for interface
+        # consistency but cannot be used to pin a specific address.
+        PATCH_MODE="launch-args-bool"
+        ;;
+    InvokeAI)
+        PATCH_MODE="env-vars"
+        HOST_ENV="INVOKEAI_HOST"
+        PORT_ENV="INVOKEAI_PORT"
+        ;;
+    Cogstudio|FluxGym)
+        PATCH_MODE="env-vars"
+        HOST_ENV="GRADIO_SERVER_NAME"
+        PORT_ENV="GRADIO_SERVER_PORT" # attention this will bind all gradio apps to that port, so you can't run multiple gradio-based packages simultaneously unless they support dynamic port assignment via env var or launch arg
+        ;;
+    *)
+        # Default: stable-diffusion-webui variants, all SDWebForge variants, VladAutomatic
+        HOST_FLAG="--server-name"
+        PORT_FLAG="--port"
+        ;;
+esac
+
+MATCH_COUNT="$(jq --arg pkg "${PACKAGE_NAME}" '[.InstalledPackages[] | select(.PackageName == $pkg)] | length' "${SETTINGS}")"
+if [[ "${MATCH_COUNT}" -eq 0 ]]; then
+    echo "ERROR: package '${PACKAGE_NAME}' not found in ${SETTINGS}" >&2
+    exit 1
+fi
+
+if [[ "${PATCH_MODE}" == "launch-args" ]]; then
+    jq --arg pkg       "${PACKAGE_NAME}" \
+       --arg host_flag "${HOST_FLAG}" \
+       --arg port_flag "${PORT_FLAG}" \
+       --arg host      "${HOST}" \
+       --arg port      "${PORT}" \
+       '.InstalledPackages |= map(
+          if .PackageName == $pkg then
+            .LaunchArgs = (
+              (.LaunchArgs // [])
+              | (if $host != "-" then map(select(.Name != $host_flag)) else . end)
+              | (if $port != "-" then map(select(.Name != $port_flag)) else . end)
+              | (if $host != "-" then . + [{"Name": $host_flag, "Type": "String", "OptionValue": $host}] else . end)
+              | (if $port != "-" then . + [{"Name": $port_flag, "Type": "String", "OptionValue": $port}] else . end)
+            )
+          else . end
+        )' \
+       "${SETTINGS}" > "${SETTINGS}.tmp" \
+    && mv "${SETTINGS}.tmp" "${SETTINGS}"
+    [[ "${HOST}" != "-" ]] && echo "[patch-sm-package] Set ${HOST_FLAG}=${HOST} for ${PACKAGE_NAME}"
+    [[ "${PORT}" != "-" ]] && echo "[patch-sm-package] Set ${PORT_FLAG}=${PORT} for ${PACKAGE_NAME}"
+
+elif [[ "${PATCH_MODE}" == "launch-args-bool" ]]; then
+    jq --arg pkg  "${PACKAGE_NAME}" \
+       --arg port "${PORT}" \
+       --argjson set_host "$([ "${HOST}" != "-" ] && echo true || echo false)" \
+       --argjson set_port "$([ "${PORT}" != "-" ] && echo true || echo false)" \
+       '.InstalledPackages |= map(
+          if .PackageName == $pkg then
+            .LaunchArgs = (
+              (.LaunchArgs // [])
+              | (if $set_host then map(select(.Name != "--host")) else . end)
+              | (if $set_port then map(select(.Name != "--port")) else . end)
+              | (if $set_host then . + [{"Name": "--host", "Type": "Bool", "OptionValue": true}] else . end)
+              | (if $set_port then . + [{"Name": "--port", "Type": "String", "OptionValue": $port}] else . end)
+            )
+          else . end
+        )' \
+       "${SETTINGS}" > "${SETTINGS}.tmp" \
+    && mv "${SETTINGS}.tmp" "${SETTINGS}"
+    [[ "${HOST}" != "-" ]] && echo "[patch-sm-package] Set --host=true (all interfaces) for ${PACKAGE_NAME}"
+    [[ "${PORT}" != "-" ]] && echo "[patch-sm-package] Set --port=${PORT} for ${PACKAGE_NAME}"
+
+elif [[ "${PATCH_MODE}" == "env-vars" ]]; then
+    # EnvironmentVariables lives at the ROOT of settings.json (global, not per-package).
+    # JSON key is "EnvironmentVariables" (UserEnvironmentVariables with [JsonPropertyName]).
+    # These vars are applied to every package launch, but only InvokeAI / Gradio apps read them.
+    jq --arg host_env  "${HOST_ENV}" \
+       --arg port_env  "${PORT_ENV}" \
+       --arg host      "${HOST}" \
+       --arg port      "${PORT}" \
+       --argjson set_host "$([ "${HOST}" != "-" ] && echo true || echo false)" \
+       --argjson set_port "$([ "${PORT}" != "-" ] && echo true || echo false)" \
+       '.EnvironmentVariables = (
+          (.EnvironmentVariables // {})
+          | (if $set_host then .[$host_env] = $host else . end)
+          | (if $set_port then .[$port_env] = $port else . end)
+        )' \
+       "${SETTINGS}" > "${SETTINGS}.tmp" \
+    && mv "${SETTINGS}.tmp" "${SETTINGS}"
+    [[ "${HOST}" != "-" ]] && echo "[patch-sm-package] Set ${HOST_ENV}=${HOST} in global EnvironmentVariables for ${PACKAGE_NAME}"
+    [[ "${PORT}" != "-" ]] && echo "[patch-sm-package] Set ${PORT_ENV}=${PORT} in global EnvironmentVariables for ${PACKAGE_NAME}"
+fi
+
+if [[ -n "${TORCH_INDEX}" ]]; then
+    jq --arg pkg "${PACKAGE_NAME}" --arg idx "${TORCH_INDEX}" \
+       '.InstalledPackages |= map(
+          if .PackageName == $pkg
+          then .PreferredTorchIndex = $idx
+          else . end
+        )' \
+       "${SETTINGS}" > "${SETTINGS}.tmp" \
+    && mv "${SETTINGS}.tmp" "${SETTINGS}"
+    echo "[patch-sm-package] Set PreferredTorchIndex=${TORCH_INDEX} for ${PACKAGE_NAME}"
+fi
