@@ -2,8 +2,6 @@
 
 # Build stage
 #
-# SM_REF=v*.*.* → download official AppImage (no build, signatures preserved)
-# SM_REF=main/branch/SHA → source build with quilt patches applied
 FROM mcr.microsoft.com/dotnet/sdk:9.0-noble AS builder
 
 ARG SM_REF=main
@@ -15,8 +13,6 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Try shallow clone for branch/tag refs, then fall back for bare commit SHAs.
-# Branch: version tag → download AppImage; branch/commit → source build with patches.
 RUN <<'BUILD_STABILITY_MATRIX'
 set -eu
 mkdir -p /build/publish /build/root/usr/bin
@@ -30,7 +26,6 @@ if echo "${SM_REF}" | grep -qE '^v[0-9]+\.[0-9]+'; then
     cd /build
     /tmp/StabilityMatrix.AppImage --appimage-extract usr
     mv -v /build/squashfs-root/usr/bin/StabilityMatrix.Avalonia /build/root/usr/bin/StabilityMatrix.Avalonia
-    echo "${SM_REF}" > /build/commit.sha
 else
     echo "[builder] Cloning source for ref ${SM_REF}..."
     git clone --depth 1 --branch "${SM_REF}" \
@@ -49,9 +44,7 @@ else
         -p:DebugSymbols=false \
         -p:SkipSigning=true \
         --output /build/publish
-    ls -l /build/publish/
     mv -v /build/publish/* /build/root/usr/bin/
-    git -C /src rev-parse --short HEAD > /build/commit.sha
 fi
 chmod +x /build/root/usr/bin/StabilityMatrix.Avalonia
 BUILD_STABILITY_MATRIX
@@ -86,23 +79,12 @@ RUN apt-get update \
          python3-xdg \
          software-properties-common \
          xclip \
-    && add-apt-repository --yes ppa:dotnet/backports \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        dotnet-runtime-9.0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/root/ /
 
 COPY root/ /
-
-RUN chmod +x /etc/s6-overlay/s6-rc.d/init-stability-matrix-config/run \
-    && chmod +x /etc/s6-overlay/s6-rc.d/init-sm-host-patch/run \
-    && chmod +x /usr/local/bin/sm-patch-bindings \
-    && chmod +x /usr/local/bin/sm-launch \
-    && chmod +x /usr/local/bin/sm-apply-xft-dpi \
-    && chmod +x /usr/local/bin/sm-url-copy
 
 ENV SM_HOME_DIR=/config/StabilityMatrix \
     SM_DATA_DIR=/data \
