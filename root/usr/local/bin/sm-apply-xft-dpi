@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SM_DPI="${SM_XFT_DPI:-}"
+BOOT_ID="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || true)"
+STATUS_DIR="${XDG_RUNTIME_DIR:-/config/.XDG}/sm-dpi"
+STATUS_FILE=""
+
+log() {
+    echo "[sm-dpi] $*"
+}
+
+write_status() {
+    local state="$1"
+    local detail="${2:-}"
+
+    mkdir -p "${STATUS_DIR}"
+    chmod 0775 "${STATUS_DIR}" || true
+
+    if [[ -z "${BOOT_ID}" ]]; then
+        BOOT_ID="unknown"
+    fi
+
+    # Keep only current-boot status files so stale state cannot satisfy waits.
+    find "${STATUS_DIR}" -maxdepth 1 -type f -name '*.status' ! -name "${BOOT_ID}.status" -delete 2>/dev/null || true
+
+    STATUS_FILE="${STATUS_DIR}/${BOOT_ID}.status"
+    {
+        printf 'state=%s\n' "${state}"
+        printf 'boot_id=%s\n' "${BOOT_ID}"
+        if [[ -n "${SM_DPI}" ]]; then
+            printf 'dpi=%s\n' "${SM_DPI}"
+        fi
+        if [[ -n "${detail}" ]]; then
+            printf 'detail=%s\n' "${detail}"
+        fi
+    } > "${STATUS_FILE}"
+}
+
+fail_requested_dpi() {
+    local detail="$1"
+    write_status failed "${detail}"
+    log "${detail}"
+    exit 1
+}
+
+# Apply Xft.dpi only when explicitly requested for this session.
+if [[ -z "${SM_DPI}" ]]; then
+    write_status skipped "SM_XFT_DPI is unset"
+    log "SM_XFT_DPI is unset; skipping"
+    exit 0
+fi
+
+if ! [[ "${SM_DPI}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    fail_requested_dpi "Invalid SM_XFT_DPI value: ${SM_DPI}"
+fi
+
+DISPLAY="${DISPLAY:-:1}"
+export DISPLAY
+
+HOME="${HOME:-/config}"
+XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/config/.XDG}"
+export HOME XDG_RUNTIME_DIR
+
+mkdir -p "${XDG_RUNTIME_DIR}"
+chmod 0775 "${XDG_RUNTIME_DIR}" || true
+
+if ! command -v xrdb >/dev/null 2>&1; then
+    fail_requested_dpi "xrdb is not available"
+fi
+
+max_wait_seconds=30
+ready=0
+for ((i=1; i<=max_wait_seconds; i++)); do
+    if xrdb -query >/dev/null 2>&1; then
+        ready=1
+        break
+    fi
+    sleep 1
+done
+
+if [[ "${ready}" -ne 1 ]]; then
+    fail_requested_dpi "Timed out waiting for X readiness on DISPLAY=${DISPLAY}; Xft.dpi=${SM_DPI} not applied"
+fi
+
+printf 'Xft.dpi: %s\n' "${SM_DPI}" | xrdb -merge -
+write_status applied "Xft.dpi merged"
+log "Applied Xft.dpi=${SM_DPI} on DISPLAY=${DISPLAY} HOME=${HOME} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}"

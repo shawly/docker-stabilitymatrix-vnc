@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        - SM_REF=v2.15.7
+        - SM_VERSION=v2.15.7
+    image: docker-stabilitymatrix-vnc:local
+    container_name: stabilitymatrix
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+      - SM_HOME_DIR=/config/StabilityMatrix  # SM global.json + library.json (AppDataHome)
+      - SM_DATA_DIR=/data                    # SM settings.json + packages/models (LibraryDir)
+      # - SM_XFT_DPI=144                     # optional session-wide X11 DPI (applied via s6/xrdb before first autostart launch)
+      # - AVALONIA_GLOBAL_SCALE_FACTOR=${AVALONIA_GLOBAL_SCALE_FACTOR:-1.5}  # scaling only SM UI (not the whole desktop) - optional
+    volumes:
+      - config:/config
+      - data:/data
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "8188:8188"
+      - "7860:7860"
+      - "9090:9090"
+    devices:
+      # - /dev/kfd:/dev/kfd  # ROCm (AMD GPU)
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp:unconfined
+    shm_size: "2gb"
+    restart: unless-stopped
+
+volumes:
+  config:
+  data:

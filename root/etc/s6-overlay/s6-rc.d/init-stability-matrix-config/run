@@ -1,0 +1,35 @@
+#!/usr/bin/with-contenv bash
+
+set -euo pipefail
+
+HOME_DIR="${SM_HOME_DIR:-/config/StabilityMatrix}"
+DATA_DIR="${SM_DATA_DIR:-/data}"
+GLOBAL_JSON="${HOME_DIR}/global.json"
+SETTINGS_FILE="${DATA_DIR}/settings.json"
+
+DEFAULT_UID="$(id -u abc 2>/dev/null || echo 911)"
+DEFAULT_GID="$(id -g abc 2>/dev/null || echo 911)"
+TARGET_UID="${PUID:-${DEFAULT_UID}}"
+TARGET_GID="${PGID:-${DEFAULT_GID}}"
+
+mkdir -p "${HOME_DIR}" "${DATA_DIR}" "${DATA_DIR}/Models" "${DATA_DIR}/Packages"
+
+chown -R "${TARGET_UID}:${TARGET_GID}" "${HOME_DIR}" "${DATA_DIR}"
+
+if [[ ! -f "${GLOBAL_JSON}" ]]; then
+    echo '{"EulaAccepted":true}' > "${GLOBAL_JSON}"
+    echo "[sm-config] Created ${GLOBAL_JSON} (EULA pre-accepted)"
+fi
+
+if [[ ! -f "${SETTINGS_FILE}" ]]; then
+    cat > "${SETTINGS_FILE}" << 'ENDJSON'
+{
+    "InstalledPackages": [],
+    "PreferredGpu": null,
+    "Theme": "Dark",
+    "CheckForUpdates": false,
+    "FirstLaunchSetupComplete": false
+}
+ENDJSON
+    echo "[sm-config] Created initial settings.json at ${SETTINGS_FILE}"
+fi

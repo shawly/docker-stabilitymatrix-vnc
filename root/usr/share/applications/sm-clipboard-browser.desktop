@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Copy Link to Clipboard
+Exec=/usr/local/bin/sm-url-copy %u
+Type=Application
+NoDisplay=true
+MimeType=x-scheme-handler/http;x-scheme-handler/https;

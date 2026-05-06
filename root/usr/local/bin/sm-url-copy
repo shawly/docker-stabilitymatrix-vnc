@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+URL="${1:-}"
+
+if [[ -n "${URL}" ]]; then
+    echo -n "${URL}" | xclip -selection clipboard 2>/dev/null \
+        || echo -n "${URL}" | xsel --clipboard --input 2>/dev/null \
+        || true
+    notify-send \
+        --urgency=normal \
+        --expire-time=8000 \
+        "Link copied to clipboard" \
+        "${URL}" 2>/dev/null || true
+fi
