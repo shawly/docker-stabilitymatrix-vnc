@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 
 URL="${1:-}"
+PUBLIC_HOSTNAME="${PUBLIC_HOSTNAME:-0.0.0.0}"
 
 if [[ -n "${URL}" ]]; then
+	# if URL contains 0.0.0.0 or 127.0.0.1 replace it with PUBLIC_HOSTNAME
+	URL="${URL//0.0.0.0/${PUBLIC_HOSTNAME}}"
+	URL="${URL//127.0.0.1/${PUBLIC_HOSTNAME}}"
+
     echo -n "${URL}" | xclip -selection clipboard 2>/dev/null \
         || echo -n "${URL}" | xsel --clipboard --input 2>/dev/null \
         || true

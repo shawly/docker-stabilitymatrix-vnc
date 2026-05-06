@@ -50,7 +50,7 @@ chmod +x /build/root/usr/bin/StabilityMatrix.Avalonia
 BUILD_STABILITY_MATRIX
 
 # Runtime stage
-FROM lscr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
+FROM lscr.io/linuxserver/baseimage-selkies:ubuntunoble
 
 ARG BUILD_DATE
 ARG SM_VERSION=unknown
@@ -58,7 +58,7 @@ ARG SM_COMMIT=unknown
 
 LABEL build_version="docker-stabilitymatrix-vnc:${SM_VERSION} (${SM_COMMIT}) build-date=${BUILD_DATE}"
 LABEL org.opencontainers.image.title="docker-stabilitymatrix-vnc"
-LABEL org.opencontainers.image.description="StabilityMatrix multi-UI Stable Diffusion manager in browser-based KasmVNC with AMD ROCm GPU passthrough"
+LABEL org.opencontainers.image.description="StabilityMatrix multi-UI Stable Diffusion manager in browser-based Selkies with AMD ROCm GPU passthrough"
 LABEL org.opencontainers.image.url="https://github.com/shawly/stabilitymatrix-vnc"
 LABEL org.opencontainers.image.source="https://github.com/shawly/stabilitymatrix-vnc"
 LABEL org.opencontainers.image.documentation="https://github.com/shawly/stabilitymatrix-vnc#readme"
@@ -77,8 +77,6 @@ RUN apt-get update \
          libicu74 \
          libnotify-bin \
          python3-xdg \
-         software-properties-common \
-         xclip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -88,9 +86,17 @@ COPY root/ /
 
 ENV SM_HOME_DIR=/config/StabilityMatrix \
     SM_DATA_DIR=/data \
-    TITLE="Stability Matrix" \
-    NO_DECOR="true" \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     DOTNET_EnableWriteXorExecute=0 \
     APPIMAGE="/usr/bin/StabilityMatrix.Avalonia" \
-    GITHUB_TOKEN=""
+    AUTO_GPU=true \
+    PIXELFLUX_WAYLAND=true \
+    FILE_MANAGER_PATH=/data \
+    NO_DECOR=true \
+    NO_GAMEPAD=true \
+    MAX_RESOLUTION=3840x2160 \
+    TITLE="Stability Matrix" \
+    SELKIES_UI_TITLE="Stability Matrix" \
+    SELKIES_UI_SIDEBAR_SHOW_APPS=false \
+    SELKIES_UI_SIDEBAR_SHOW_SHARING=false \
+    SELKIES_UI_SIDEBAR_SHOW_GAMING_MODE=false

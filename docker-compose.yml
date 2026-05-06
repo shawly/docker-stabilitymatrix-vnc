@@ -13,8 +13,9 @@ services:
       - TZ=Europe/Berlin
       - SM_HOME_DIR=/config/StabilityMatrix  # SM global.json + library.json (AppDataHome)
       - SM_DATA_DIR=/data                    # SM settings.json + packages/models (LibraryDir)
-      # - SM_XFT_DPI=144                     # optional session-wide X11 DPI (applied via s6/xrdb before first autostart launch)
-      # - AVALONIA_GLOBAL_SCALE_FACTOR=${AVALONIA_GLOBAL_SCALE_FACTOR:-1.5}  # scaling only SM UI (not the whole desktop) - optional
+      - PUBLIC_HOSTNAME=localhost
+      # - SM_XFT_DPI=144                     # custom DPI setting for X11 (Wayland ignores this) - optional
+      - AVALONIA_GLOBAL_SCALE_FACTOR=${AVALONIA_GLOBAL_SCALE_FACTOR:-1.5}  # scaling only SM UI (not the whole desktop) - optional
     volumes:
       - config:/config
       - data:/data
