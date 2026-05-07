@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
 
-xterm -e /usr/local/bin/sm-launch
+notify-send --urgency=normal --expire-time=10000 "Starting Stability Matrix..." "This may take a few seconds. Please wait." 2>/dev/null || true &
+/usr/local/bin/sm-apply-xft-dpi
+sleep 1
+/usr/local/bin/sm-launch

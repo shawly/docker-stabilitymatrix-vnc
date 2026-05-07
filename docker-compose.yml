@@ -1,11 +1,15 @@
+##
+# Example docker-compose.yml for StabilityMatrix with VNC support.
+
 services:
   app:
     build:
       context: .
       args:
-        - SM_REF=v2.15.7
-        - SM_VERSION=v2.15.7
-    image: docker-stabilitymatrix-vnc:local
+        - SM_REF=${SM_REF:-main}
+        - SM_VERSION=${SM_VERSION:-edge}
+        - SM_COMMIT=${SM_COMMIT:-unknown}
+    image: ghcr.io/shawly/stabilitymatrix-vnc:edge
     container_name: stabilitymatrix
     environment:
       - PUID=1000
@@ -14,8 +18,8 @@ services:
       - SM_HOME_DIR=/config/StabilityMatrix  # SM global.json + library.json (AppDataHome)
       - SM_DATA_DIR=/data                    # SM settings.json + packages/models (LibraryDir)
       - PUBLIC_HOSTNAME=localhost
-      # - SM_XFT_DPI=144                     # custom DPI setting for X11 (Wayland ignores this) - optional
-      - AVALONIA_GLOBAL_SCALE_FACTOR=${AVALONIA_GLOBAL_SCALE_FACTOR:-1.5}  # scaling only SM UI (not the whole desktop) - optional
+      - SM_XFT_DPI=144                     # custom DPI setting for X11 (Wayland ignores this) - optional
+      # - AVALONIA_GLOBAL_SCALE_FACTOR=${AVALONIA_GLOBAL_SCALE_FACTOR:-1.5}  # scaling only SM UI (not the whole desktop) - optional
     volumes:
       - config:/config
       - data:/data

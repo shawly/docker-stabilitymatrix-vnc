@@ -50,7 +50,7 @@ chmod +x /build/root/usr/bin/StabilityMatrix.Avalonia
 BUILD_STABILITY_MATRIX
 
 # Runtime stage
-FROM lscr.io/linuxserver/baseimage-selkies:ubuntunoble
+FROM lscr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
 
 ARG BUILD_DATE
 ARG SM_VERSION=unknown
@@ -70,13 +70,16 @@ LABEL org.opencontainers.image.licenses="GPL-3.0-only AND AGPL-3.0-only"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-         ca-certificates \
-         desktop-file-utils \
-         jq \
-         git \
-         libicu74 \
-         libnotify-bin \
-         python3-xdg \
+        ca-certificates \
+        desktop-file-utils \
+        jq \
+        git \
+        libicu74 \
+        libnotify-bin \
+        python3-xdg \
+        pkg-config \
+        libcairo2-dev \
+        xclip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -89,14 +92,6 @@ ENV SM_HOME_DIR=/config/StabilityMatrix \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     DOTNET_EnableWriteXorExecute=0 \
     APPIMAGE="/usr/bin/StabilityMatrix.Avalonia" \
-    AUTO_GPU=true \
-    PIXELFLUX_WAYLAND=true \
-    FILE_MANAGER_PATH=/data \
+    FM_HOME=/data \
     NO_DECOR=true \
-    NO_GAMEPAD=true \
-    MAX_RESOLUTION=3840x2160 \
-    TITLE="Stability Matrix" \
-    SELKIES_UI_TITLE="Stability Matrix" \
-    SELKIES_UI_SIDEBAR_SHOW_APPS=false \
-    SELKIES_UI_SIDEBAR_SHOW_SHARING=false \
-    SELKIES_UI_SIDEBAR_SHOW_GAMING_MODE=false
+    TITLE="Stability Matrix"

@@ -8,7 +8,7 @@
     </item>
     <item label="Stability Matrix" icon="/usr/share/hicolor/48x48/apps/stability-matrix.png">
       <action name="Execute">
-        <command>xterm -e /usr/local/bin/sm-launch</command>
+        <command>/usr/local/bin/sm-launch</command>
       </action>
     </item>
   </menu>
