@@ -55,6 +55,7 @@ FROM lscr.io/linuxserver/baseimage-kasmvnc:ubuntunoble
 ARG BUILD_DATE
 ARG SM_VERSION=unknown
 ARG SM_COMMIT=unknown
+ARG ROCM_VERSION=7.2.3
 
 LABEL build_version="docker-stabilitymatrix-vnc:${SM_VERSION} (${SM_COMMIT}) build-date=${BUILD_DATE}"
 LABEL org.opencontainers.image.title="docker-stabilitymatrix-vnc"
@@ -82,6 +83,47 @@ RUN apt-get update \
         xclip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN <<'INSTALL_ROCM'
+set -eu
+
+if [[ -z "${ROCM_VERSION}" ]]; then
+    echo "ROCM_VERSION is not set. Skipping ROCm installation."
+    exit 0
+fi
+
+mkdir --parents --mode=0755 /etc/apt/keyrings
+
+curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
+
+tee /etc/apt/sources.list.d/rocm.list << EOF
+deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/${ROCM_VERSION} noble main
+deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/graphics/${ROCM_VERSION}/ubuntu noble main
+EOF
+
+tee /etc/apt/preferences.d/rocm-pin-600 << EOF
+Package: *
+Pin: release o=repo.radeon.com
+Pin-Priority: 600
+EOF
+
+apt-get update
+apt-get install -y --no-install-recommends \
+        sudo \
+        libelf1 \
+        libdw1t64 \
+        libfile-which-perl \
+        liburi-perl \
+        kmod \
+        file \
+        python3-dev \
+        python3-pip \
+        rocm-dev \
+        build-essential 
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+INSTALL_ROCM
 
 COPY --from=builder /build/root/ /
 
