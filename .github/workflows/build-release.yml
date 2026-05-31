@@ -61,6 +61,7 @@ jobs:
           TOKEN=$(echo -n "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" | base64)
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Basic ${TOKEN}" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
             "https://ghcr.io/v2/${{ github.repository }}/manifests/${VERSION}")
           if [[ "$HTTP" == "200" ]]; then
             echo "should_build=false" >> "$GITHUB_OUTPUT"
