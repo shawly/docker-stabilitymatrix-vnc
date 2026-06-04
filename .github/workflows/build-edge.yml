@@ -30,11 +30,11 @@ jobs:
         id: edge-check
         run: |
           SHA="${{ steps.get-sha.outputs.sha }}"
-          TOKEN=$(echo -n "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" | base64)
+          TOKEN=$(echo -n "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" | base64 -w 0)
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Basic ${TOKEN}" \
             -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-            "https://ghcr.io/v2/${{ github.repository }}/manifests/${SHA}")
+            "https://ghcr.io/v2/${{ env.IMAGE_NAME }}/manifests/${SHA}")
           if [[ "$HTTP" == "200" ]]; then
             echo "already_built=true" >> "$GITHUB_OUTPUT"
           else

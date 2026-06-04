@@ -57,12 +57,11 @@ jobs:
         id: compare
         run: |
           VERSION="${{ steps.get-release.outputs.version }}"
-          # GHCR requires Basic auth with base64-encoded token for anonymous manifest checks
-          TOKEN=$(echo -n "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" | base64)
+          TOKEN=$(echo -n "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" | base64 -w 0)
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Basic ${TOKEN}" \
             -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-            "https://ghcr.io/v2/${{ github.repository }}/manifests/${VERSION}")
+            "https://ghcr.io/v2/${{ env.IMAGE_NAME }}/manifests/${VERSION}")
           if [[ "$HTTP" == "200" ]]; then
             echo "should_build=false" >> "$GITHUB_OUTPUT"
           else
